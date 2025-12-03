@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue';
+import { checkPermission } from '../utils/permissions';
 
 // STATE: Simulating a logged-in user with specific context
 // In a real app, this would be populated by Supabase Auth + Fetching 'user_roles' table
@@ -15,34 +16,8 @@ export function useUser() {
   // 1. The Permission Logic (The Brain)
   const can = (action, resourceTeamId = null) => {
     const roles = currentUser.value.roles;
-
-    // Super Admin override
-    if (roles.some(r => r.role === 'admin')) return true;
-
-    // Role-Specific Logic
-    switch (action) {
-      case 'manage_club': // Adding teams, players
-        return roles.some(r => r.role === 'admin' || r.role === 'secretary');
-      
-      case 'manage_finance': // Treasurer Dashboard
-        return roles.some(r => r.role === 'treasurer');
-      
-      case 'manage_team': // Selecting squads, creating fixtures
-        // Coach can manage specific teams (logic simplified for demo)
-        return roles.some(r => r.role === 'coach');
-      
-      case 'edit_compliance': // Changing League Rules
-        return roles.some(r => ['secretary', 'treasurer'].includes(r.role));
-        
-      case 'view_safeguarding': // Welfare Officer Dashboard
-        return roles.some(r => r.role === 'welfare_officer');
-
-      case 'pay_wallet': // Parent view
-        return roles.some(r => ['parent', 'player'].includes(r.role));
-        
-      default:
-        return false;
-    }
+    
+    return checkPermission(currentUser.value.roles, action);
   };
 
   // 2. Computed Permissions Object (For easy v-if bindings in templates)

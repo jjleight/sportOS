@@ -4,6 +4,7 @@ import { supabase } from '../supabase';
 import { useClub } from '../composables/useClub';
 import { useToast } from '../composables/useToast';
 import { useConfirm } from '../composables/useConfirm';
+import { calculateTotalDebt } from '../utils/finance'; 
 import { 
   Wallet, 
   CreditCard, 
@@ -83,7 +84,8 @@ async function fetchWallet() {
 }
 
 const totalDue = computed(() => {
-  return ledgerItems.value.reduce((sum, item) => sum + item.amount, 0).toFixed(2);
+  // Now we use the shared utility function
+  return calculateTotalDebt(ledgerItems.value);
 });
 
 const handlePayment = async () => {

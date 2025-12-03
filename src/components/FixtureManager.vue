@@ -4,6 +4,7 @@ import { supabase } from '../supabase';
 import { useToast } from '../composables/useToast';
 import { useConfirm } from '../composables/useConfirm';
 import { useClub } from '../composables/useClub';
+import { filterFixtures } from '../utils/fixtures';
 import { Calendar, Plus, Filter, ChevronDown, History } from 'lucide-vue-next';
 
 // Sub-Components
@@ -54,24 +55,11 @@ async function fetchData() {
 
 // Computed Filter Logic
 const processedFixtures = computed(() => {
-  let list = fixtures.value.filter(f => {
-    if (f.status === 'Played' && timeframe.value === 'upcoming') return false;
-    if (f.status === 'Played' && timeframe.value === 'past') return true;
-
-    const matchDate = new Date(f.match_date);
-    const todayDate = new Date();
-    todayDate.setHours(0,0,0,0);
-
-    if (timeframe.value === 'upcoming') return matchDate >= todayDate;
-    if (timeframe.value === 'past') return matchDate < todayDate;
-    return true;
-  });
-
-  if (selectedTeamId.value !== 'all') {
-    list = list.filter(f => f.team_id === selectedTeamId.value);
-  }
-
-  return list;
+  return filterFixtures(fixtures.value, {
+        timeframe: timeframe.value,
+        teamId: selectedTeamId.value,
+        searchQuery: searchQuery.value
+    });
 });
 
 const groupedFixtures = computed(() => {
