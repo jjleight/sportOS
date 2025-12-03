@@ -15,7 +15,7 @@ import {
   Menu, 
   Gavel, 
   Users,
-  Calendar // NEW IMPORT
+  Calendar 
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -29,7 +29,6 @@ const { permissions } = useUser();
     <ToastManager />
     <ConfirmationModal /> 
 
-    <!-- DESKTOP SIDEBAR -->
     <aside v-if="!isLandingPage" class="hidden md:flex flex-col w-64 bg-slate-900 text-slate-300 h-screen sticky top-0 border-r border-slate-800 transition-all">
       <div class="p-6 flex items-center gap-3 cursor-pointer" @click="$router.push('/')">
         <div class="w-8 h-8">
@@ -45,17 +44,23 @@ const { permissions } = useUser();
           <span>Team Selection</span>
         </router-link>
 
+        <!-- Parent Links -->
+        <router-link v-if="permissions.isParent" to="/hub" class="nav-row" active-class="active">
+          <Calendar class="w-5 h-5" />
+          <span>Match Day Hub</span>
+        </router-link>
+
         <router-link to="/wallet" class="nav-row" active-class="active">
           <Wallet class="w-5 h-5" />
           <span>My Wallet</span>
         </router-link>
+        <!-- End Parent Links -->
 
         <router-link v-if="permissions.canManageMoney" to="/treasurer" class="nav-row" active-class="active">
           <HandCoins class="w-5 h-5" />
           <span>Club Health</span>
         </router-link>
 
-        <!-- FIXTURES LINK (Visible to Coach & Secretary) -->
         <router-link v-if="permissions.canSelectTeam || permissions.canEditRules" to="/fixtures" class="nav-row" active-class="active">
           <Calendar class="w-5 h-5" />
           <span>Fixtures</span>
@@ -79,7 +84,6 @@ const { permissions } = useUser();
 
       <div class="p-4 border-t border-slate-800 space-y-4">
         <RoleSwitcher theme="dark" direction="up" />
-        
         <router-link to="/" class="flex items-center gap-3 text-sm font-medium hover:text-white transition px-2">
           <LogOut class="w-4 h-4" />
           Back to Home
@@ -87,10 +91,9 @@ const { permissions } = useUser();
       </div>
     </aside>
 
-    <!-- MAIN CONTENT AREA -->
+    <!-- MAIN CONTENT -->
     <main class="flex-1 flex flex-col min-w-0 overflow-hidden relative">
       
-      <!-- Mobile Header -->
       <div v-if="!isLandingPage" class="md:hidden bg-white border-b border-slate-200 p-4 flex justify-between items-center sticky top-0 z-20">
         <div class="flex items-center gap-2">
           <div class="w-8 h-8">
@@ -103,7 +106,6 @@ const { permissions } = useUser();
         </div>
       </div>
 
-      <!-- Page View -->
       <div class="flex-1 overflow-y-auto" :class="!isLandingPage ? 'p-0 md:p-8' : ''">
         <div :class="!isLandingPage ? 'max-w-5xl mx-auto' : 'w-full'">
           <router-view v-slot="{ Component }">
@@ -122,12 +124,17 @@ const { permissions } = useUser();
           <span>Team</span>
         </router-link>
 
+        <!-- Parent Link -->
+        <router-link v-if="permissions.isParent" to="/hub" class="mobile-nav-item" active-class="active">
+          <Calendar class="w-6 h-6" />
+          <span>Match Day</span>
+        </router-link>
+
         <router-link to="/wallet" class="mobile-nav-item" active-class="active">
           <Wallet class="w-6 h-6" />
           <span>Wallet</span>
         </router-link>
 
-        <!-- FIXTURES LINK (Icon Only on Mobile to save space) -->
         <router-link v-if="permissions.canSelectTeam" to="/fixtures" class="mobile-nav-item" active-class="active">
           <Calendar class="w-6 h-6" />
           <span>Matches</span>
