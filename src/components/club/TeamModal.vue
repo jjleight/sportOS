@@ -16,21 +16,40 @@ const form = ref({ name: '', level: 5, gender: 'Mens', format: '11v11' });
 
 onMounted(() => {
   if (props.team) {
-    form.value = { ...props.team }; // Clone data to avoid direct mutation
+    // EDIT MODE: Map Database Columns -> Form Fields
+    form.value = { 
+      name: props.team.name,
+      level: props.team.team_level, // Map team_level (DB) to level (Form)
+      gender: props.team.gender,
+      format: props.team.format || '11v11'
+    };
   }
 });
 
 const save = async () => {
-  const payload = { ...form.value, club_id: props.clubId };
+  // SAVE MODE: Map Form Fields -> Database Columns
+  const payload = { 
+    club_id: props.clubId,
+    name: form.value.name,
+    team_level: form.value.level, // The Fix: Send as 'team_level'
+    gender: form.value.gender,
+    format: form.value.format
+  };
+
   let error = null;
 
   if (props.team) {
     // UPDATE
-    const { error: err } = await supabase.from('teams').update(payload).eq('id', props.team.id);
+    const { error: err } = await supabase
+      .from('teams')
+      .update(payload)
+      .eq('id', props.team.id);
     error = err;
   } else {
     // CREATE
-    const { error: err } = await supabase.from('teams').insert(payload);
+    const { error: err } = await supabase
+      .from('teams')
+      .insert(payload);
     error = err;
   }
 

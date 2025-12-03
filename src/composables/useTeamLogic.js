@@ -2,16 +2,20 @@ import { ref } from 'vue';
 import { supabase } from '../supabase';
 import { useToast } from './useToast';
 
+export function calculateEligibility(higherApps, limit) {
+  if (higherApps > limit) return 'ineligible';
+  if (higherApps === limit) return 'risk';
+  return 'eligible';
+}
+
 export function useTeamLogic(activeClubId) {
   
   const { showToast } = useToast();
-  
   const loading = ref(true);
   const matches = ref([]);
   const players = ref([]);
   const leagueLimit = ref(5);
 
-  // 1. Load League Rules
   const fetchRules = async () => {
     const { data } = await supabase
       .from('league_rules')
@@ -21,7 +25,6 @@ export function useTeamLogic(activeClubId) {
     if (data) leagueLimit.value = data.threshold_value;
   };
 
-  // 2. Load Schedule
   const fetchMatches = async () => {
     const { data } = await supabase
       .from('matches')
@@ -32,25 +35,21 @@ export function useTeamLogic(activeClubId) {
     matches.value = data || [];
   };
 
-  // 3. The Heavy Lifter: Load Players + Status + Availability
   const fetchRoster = async (matchId, viewMode, searchQuery) => {
     loading.value = true;
     const match = matches.value.find(m => m.id === matchId);
     if (!match) return (loading.value = false);
 
     try {
-      // A. Fetch Raw Data
       const [allPlayers, currentSelections, availabilityData] = await Promise.all([
         supabase.from('players').select(`*, team_memberships!left (team_id)`).eq('club_id', activeClubId.value).order('last_name'),
         supabase.from('appearances').select('player_id, position').eq('match_id', matchId),
         supabase.from('match_availability').select('player_id, status, note').eq('match_id', matchId)
       ]);
 
-      // B. Create Lookup Maps
       const selectionMap = new Map(currentSelections.data?.map(a => [a.player_id, a.position]));
       const availabilityMap = new Map(availabilityData.data?.map(a => [a.player_id, a]));
 
-      // C. Filter List
       const filteredList = allPlayers.data.filter(p => {
         const isSelected = selectionMap.has(p.id);
         if (searchQuery) {
@@ -62,7 +61,6 @@ export function useTeamLogic(activeClubId) {
         return true;
       });
 
-      // D. Process Eligibility (The expensive part)
       const processedPlayers = await Promise.all(filteredList.map(async (p) => {
         const { count } = await supabase
           .from('appearances')
@@ -71,21 +69,18 @@ export function useTeamLogic(activeClubId) {
           .lt('matches.teams.team_level', match.teams.team_level)
           .lt('matches.match_date', match.match_date);
 
-        let complianceStatus = 'eligible';
-        if (count > leagueLimit.value) complianceStatus = 'ineligible';
-        else if (count === leagueLimit.value) complianceStatus = 'risk';
+        const complianceStatus = calculateEligibility(count, leagueLimit.value);
 
         return {
           ...p,
           isSelected: selectionMap.has(p.id),
           position: selectionMap.get(p.id) || 'SUB',
           higherApps: count,
-          complianceStatus,
+          complianceStatus, // Now uses the tested logic
           availability: availabilityMap.get(p.id)?.status || 'Unknown'
         };
       }));
 
-      // E. Sort
       players.value = processedPlayers.sort((a, b) => {
         if (a.isSelected !== b.isSelected) return a.isSelected ? -1 : 1;
         if (a.availability === 'Unavailable' && b.availability !== 'Unavailable') return 1;
@@ -101,7 +96,6 @@ export function useTeamLogic(activeClubId) {
     }
   };
 
-  // 4. Actions
   const updateSelection = async (matchId, player, isSelecting, position = 'SUB') => {
     if (isSelecting) {
        const { error } = await supabase.from('appearances').insert({

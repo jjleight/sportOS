@@ -27,7 +27,7 @@ defineEmits(['update:searchQuery', 'toggle', 'setPosition']);
     <!-- Loading State -->
     <div v-if="loading" class="text-center py-12 text-slate-400 flex flex-col items-center gap-2">
       <div class="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-      <span class="text-xs">Loading Roster...</span>
+      <span class="text-xs">Loading players...</span>
     </div>
 
     <!-- Empty State -->
