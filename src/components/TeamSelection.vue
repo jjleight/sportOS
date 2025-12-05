@@ -1,45 +1,48 @@
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue';
+import { supabase } from '../supabase';
 import { useClub } from '../composables/useClub';
-import { useTeamLogic } from '../composables/useTeamLogic'; // The new brain
+import { useTeamLogic } from '../composables/useTeamLogic';
 import { useToast } from '../composables/useToast';
 import { useConfirm } from '../composables/useConfirm';
+import { useUser } from '../composables/useUser'; // Import Permissions
 
 // Sub-Components
 import SelectionHeader from './selection/SelectionHeader.vue';
 import PlayerList from './selection/PlayerList.vue';
 import PitchView from './selection/PitchView.vue';
 
-// 1. Setup Composables
 const { activeClubId } = useClub();
 const { showToast } = useToast();
 const { showConfirm } = useConfirm();
+const { permissions } = useUser();
+
+// We still use the logic composable, but we need to override fetchMatches to filter it
 const { 
-  loading, matches, players, leagueLimit, 
-  fetchRules, fetchMatches, fetchRoster, updateSelection, updatePosition 
+  loading, players, leagueLimit, 
+  fetchRules, fetchRoster, updateSelection, updatePosition 
 } = useTeamLogic(activeClubId);
 
-// 2. UI State
+// Local State
+const matches = ref([]);
 const selectedMatchId = ref(null);
-const viewMode = ref('squad'); // 'squad' | 'club'
-const displayMode = ref('list'); // 'list' | 'pitch'
+const viewMode = ref('squad');
+const displayMode = ref('list');
 const searchQuery = ref('');
 
-// 3. Derived State
+// Derived State
 const currentMatch = computed(() => matches.value.find(m => m.id === selectedMatchId.value));
 const teamFormat = computed(() => currentMatch.value?.teams?.format || '11v11');
 const selectedPlayers = computed(() => players.value.filter(p => p.isSelected));
 
-// 4. Lifecycle
 onMounted(async () => {
   loading.value = true;
   await fetchRules();
-  await fetchMatches();
+  await fetchUpcomingMatches();
   if (matches.value.length > 0) selectedMatchId.value = matches.value[0].id;
   loading.value = false;
 });
 
-// 5. Watchers (React to UI changes)
 watch([selectedMatchId, viewMode], () => {
   if (selectedMatchId.value) {
     fetchRoster(selectedMatchId.value, viewMode.value, searchQuery.value);
@@ -51,28 +54,37 @@ const handleSearch = (query) => {
   if (selectedMatchId.value) fetchRoster(selectedMatchId.value, viewMode.value, query);
 };
 
-// 6. User Interactions
+// Override Fetch Matches to include Permission Filter
+async function fetchUpcomingMatches() {
+  const { data } = await supabase
+    .from('matches')
+    .select(`*, teams!inner(*)`)
+    .eq('teams.club_id', activeClubId.value)
+    .eq('status', 'Scheduled')
+    .order('match_date', { ascending: true });
+  
+  let allMatches = data || [];
+
+  // FILTER: Only show matches for my teams (if restricted)
+  if (permissions.value.managedTeamIds !== 'all') {
+      allMatches = allMatches.filter(m => permissions.value.managedTeamIds.includes(m.team_id));
+  }
+
+  matches.value = allMatches;
+}
+
+// User Interactions
 const handleTogglePlayer = async (player, desiredPos = 'SUB') => {
   if (loading.value) return;
 
   try {
     if (!player.isSelected) {
-      // A. Availability Check
+      // Checks
       if (player.availability === 'Unavailable') {
-        const confirmed = await showConfirm(
-          "⚠️ Player Unavailable",
-          `${player.first_name} marked themselves as unavailable. Select anyway?`
-        );
-        if (!confirmed) return;
+        if (!await showConfirm("⚠️ Player Unavailable", `${player.first_name} marked themselves as unavailable. Select anyway?`)) return;
       }
-
-      // B. Compliance Check
       if (player.complianceStatus === 'ineligible') {
-        const confirmed = await showConfirm(
-          "⚠️ Rule Violation", 
-          "Selecting this player may result in a fine. Proceed?"
-        );
-        if (!confirmed) return;
+        if (!await showConfirm("⚠️ Rule Violation", "Selecting may result in a fine. Proceed?")) return;
       }
 
       await updateSelection(selectedMatchId.value, player, true, desiredPos);
@@ -108,7 +120,6 @@ const handleSetPosition = async (player, pos) => {
       :teamFormat="teamFormat"
     />
 
-    <!-- Main Content View -->
     <PitchView 
       v-if="displayMode === 'pitch'" 
       :selectedPlayers="selectedPlayers" 

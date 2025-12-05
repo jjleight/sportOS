@@ -41,19 +41,32 @@ async function fetchData() {
   loading.value = true;
   
   try {
-    // 1. Teams logic (remains the same)
+    // --- 1. RESTORED STAFF COUNT LOGIC ---
+    
+    // A. Fetch Teams
     const { data: teamData } = await supabase
       .from('teams')
       .select('*')
       .eq('club_id', activeClubId.value)
       .order('team_level', { ascending: true });
 
-    // ... (staff counting logic remains the same) ...
-    // Mocking the staff count merge for brevity in this snippet
-    teams.value = (teamData || []).map(team => ({ ...team, team_staff: [{ count: 0 }] })); 
+    // B. Fetch ALL Staff for these teams
+    const teamIds = (teamData || []).map(t => t.id);
+    const { data: staffData } = await supabase
+      .from('team_staff')
+      .select('team_id')
+      .in('team_id', teamIds);
 
-    // 2. PLAYERS QUERY (THE FIX)
-    // We fetch households as a DIRECT relation to players
+    // C. Merge Counts manually
+    teams.value = (teamData || []).map(team => {
+        const count = staffData?.filter(s => s.team_id === team.id).length || 0;
+        return {
+            ...team,
+            team_staff: [{ count }] // Mimic the structure expected by the UI
+        };
+    });
+
+    // --- 2. PLAYERS QUERY ---
     const { data: playerData, error: playerError } = await supabase
       .from('players')
       .select(`
@@ -72,18 +85,17 @@ async function fetchData() {
 
   } catch (err) {
     console.error(err);
-    showToast('Error', 'Failed to load data: ' + err.message, 'error');
+    showToast('Error', 'Failed to load data', 'error');
   } finally {
     loading.value = false;
   }
 }
 
-// --- TEAM ACTIONS ---
+// --- ACTIONS ---
 const openCreateTeam = () => { editingTeam.value = null; showTeamModal.value = true; };
 const openEditTeam = (team) => { editingTeam.value = team; showTeamModal.value = true; };
 const openStaff = (team) => { managingStaffTeam.value = team; showStaffModal.value = true; };
 
-// --- PLAYER ACTIONS ---
 const openCreatePlayer = () => { editingPlayer.value = null; showPlayerModal.value = true; };
 const openEditPlayer = (player) => { editingPlayer.value = player; showPlayerModal.value = true; };
 
@@ -155,3 +167,4 @@ const deletePlayer = async (player) => {
 
   </div>
 </template>
+

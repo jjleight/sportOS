@@ -27,7 +27,6 @@ watch(householdId, (newId) => {
 async function fetchMyMatches() {
   loading.value = true;
   try {
-    // 1. Get Kids IDs
     const { data: kids } = await supabase.from('players').select('id, first_name').eq('household_id', householdId.value);
     if (!kids || kids.length === 0) {
         loading.value = false;
@@ -35,7 +34,6 @@ async function fetchMyMatches() {
     }
     const kidIds = kids.map(k => k.id);
 
-    // 2. Get Matches
     const { data: matchData, error } = await supabase
       .from('matches')
       .select(`
@@ -51,7 +49,6 @@ async function fetchMyMatches() {
 
     if (error) throw error;
 
-    // 3. Transform
     matches.value = matchData.flatMap(m => {
       const involvedKids = kids.filter(k => 
         m.teams.team_memberships.some(tm => tm.player_id === k.id)
@@ -66,7 +63,6 @@ async function fetchMyMatches() {
       }));
     });
     
-    // Sort
     matches.value.sort((a, b) => {
         const dateA = new Date(`${a.match_date}T${a.match_time}`);
         const dateB = new Date(`${b.match_date}T${b.match_time}`);
@@ -98,7 +94,6 @@ const openMap = (location) => {
   window.open(`https://maps.google.com/?q=${location}`, '_blank');
 };
 
-// Grouping Logic
 const nextMatchDate = computed(() => matches.value.length > 0 ? matches.value[0].match_date : null);
 const todaysMatches = computed(() => nextMatchDate.value ? matches.value.filter(m => m.match_date === nextMatchDate.value) : []);
 const futureMatches = computed(() => nextMatchDate.value ? matches.value.filter(m => m.match_date !== nextMatchDate.value) : []);
@@ -126,6 +121,7 @@ const prettyDateHeader = computed(() => {
       </div>
 
       <div v-else>
+        
         <!-- Hero Carousel -->
         <div class="mb-8">
             <div class="flex justify-between items-end mb-4 px-1">
@@ -134,16 +130,27 @@ const prettyDateHeader = computed(() => {
                     {{ todaysMatches.length }} Games
                 </span>
             </div>
-            <div class="flex overflow-x-auto gap-4 pb-4 -mx-6 px-6 snap-x snap-mandatory no-scrollbar">
-                <div v-for="match in todaysMatches" :key="`${match.id}-${match.playerId}`" class="snap-center shrink-0 w-full max-w-[340px]">
+            
+            <!-- 
+               UPDATED LAYOUT LOGIC:
+               - If 1 match: Use simple block layout (full width).
+               - If >1 match: Use flex carousel (max-w cards).
+            -->
+            <div :class="todaysMatches.length > 1 ? 'flex overflow-x-auto gap-4 pb-4 -mx-6 px-6 snap-x snap-mandatory no-scrollbar' : ''">
+                
+                <div v-for="match in todaysMatches" :key="`${match.id}-${match.playerId}`" 
+                     :class="todaysMatches.length > 1 ? 'snap-center shrink-0 w-full max-w-[340px]' : 'w-full'">
+                    
                     <MatchHero 
                         :match="match" 
                         @updateStatus="handleStatusUpdate" 
                         @openMap="openMap" 
                     />
                 </div>
+                
             </div>
-            <!-- Dots -->
+
+            <!-- Dots (Only if carousel is active) -->
             <div v-if="todaysMatches.length > 1" class="flex justify-center gap-1.5 mt-3">
                 <div v-for="n in todaysMatches.length" :key="n" class="w-1.5 h-1.5 rounded-full bg-slate-300 first:bg-indigo-500"></div>
             </div>
@@ -161,3 +168,8 @@ const prettyDateHeader = computed(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+</style>

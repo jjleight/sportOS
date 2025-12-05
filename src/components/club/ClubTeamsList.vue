@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { Search, Edit2, UserCog, Briefcase, LayoutGrid, Filter } from 'lucide-vue-next';
+import { Search, Edit2, UserCog, Briefcase, LayoutGrid } from 'lucide-vue-next';
 
 const props = defineProps({
   teams: Array
@@ -9,14 +9,12 @@ const props = defineProps({
 const emit = defineEmits(['edit', 'manageStaff']);
 
 const searchQuery = ref('');
-const categoryFilter = ref('All'); // 'All', 'Mens', 'Womens', 'Youth'
-
+const categoryFilter = ref('All'); 
 const categories = ['All', 'Mens', 'Womens', 'Youth'];
 
 const filteredTeams = computed(() => {
   let list = props.teams;
 
-  // 1. Filter by Category
   if (categoryFilter.value !== 'All') {
     if (categoryFilter.value === 'Youth') {
       list = list.filter(t => t.gender === 'Boys' || t.gender === 'Girls');
@@ -25,7 +23,6 @@ const filteredTeams = computed(() => {
     }
   }
 
-  // 2. Search
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase();
     list = list.filter(t => t.name.toLowerCase().includes(q));
@@ -40,8 +37,6 @@ const filteredTeams = computed(() => {
     
     <!-- Toolbar -->
     <div class="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-      
-      <!-- Category Tabs -->
       <div class="flex bg-slate-100 p-1 rounded-lg">
         <button v-for="cat in categories" :key="cat"
                 @click="categoryFilter = cat"
@@ -50,8 +45,6 @@ const filteredTeams = computed(() => {
           {{ cat }}
         </button>
       </div>
-
-      <!-- Search -->
       <div class="relative w-full md:w-64">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input v-model="searchQuery" type="text" placeholder="Find a team..." 
@@ -69,7 +62,6 @@ const filteredTeams = computed(() => {
            class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center group hover:border-indigo-300 transition relative overflow-hidden">
         
         <div class="flex items-center gap-4 z-10">
-          <!-- Level Badge -->
           <div class="w-12 h-12 rounded-xl bg-slate-50 text-slate-600 flex flex-col items-center justify-center border border-slate-100 font-mono">
              <span class="text-[9px] uppercase font-bold tracking-wider text-slate-400">Lvl</span>
              <span class="font-bold text-lg leading-none">{{ team.team_level }}</span>
@@ -82,6 +74,7 @@ const filteredTeams = computed(() => {
               <span class="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center gap-1">
                  <LayoutGrid class="w-3 h-3" /> {{ team.format || '11v11' }}
               </span>
+              <!-- THE BADGE -->
               <span v-if="team.team_staff && team.team_staff[0]?.count > 0" class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center gap-1">
                  <Briefcase class="w-3 h-3" /> {{ team.team_staff[0].count }} Staff
               </span>

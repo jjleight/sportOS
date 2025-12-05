@@ -69,9 +69,9 @@ const removeStaff = async (id) => {
                 <option>Team Manager</option>
                 <option>Physio</option>
              </select>
-             <input v-model="form.email" placeholder="Email (for invite)" class="input bg-white" />
+             <input v-model="form.email" placeholder="Email (Required for Login)" class="input bg-white" />
           </div>
-          <button @click="addStaff" :disabled="!form.first_name" class="btn-primary bg-emerald-600 hover:bg-emerald-700">
+          <button @click="addStaff" :disabled="!form.first_name || !form.email" class="btn-primary bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50">
              Add to Staff
           </button>
        </div>
@@ -105,4 +105,3 @@ const removeStaff = async (id) => {
 .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 </style>
-

@@ -4,8 +4,13 @@ import { supabase } from '../supabase';
 import { useToast } from '../composables/useToast';
 import { useConfirm } from '../composables/useConfirm';
 import { useClub } from '../composables/useClub';
-import { filterFixtures } from '../utils/fixtures';
-import { Calendar, Plus, Filter, ChevronDown, History } from 'lucide-vue-next';
+import { useUser } from '../composables/useUser'; // Import Permissions
+import { 
+  Calendar, Plus, MapPin, Clock, 
+  Search, Edit2, Trash2, XCircle, 
+  AlertOctagon, Filter, ChevronDown, 
+  ArrowRight, History, CheckSquare, Shirt
+} from 'lucide-vue-next';
 
 // Sub-Components
 import FixtureList from './fixtures/FixtureList.vue';
@@ -14,6 +19,7 @@ import FixtureModal from './fixtures/FixtureModal.vue';
 const { showToast } = useToast();
 const { showConfirm } = useConfirm();
 const { activeClubId } = useClub();
+const { permissions } = useUser(); // Get User Permissions
 
 const loading = ref(true);
 const teams = ref([]);
@@ -33,15 +39,21 @@ onMounted(fetchData);
 async function fetchData() {
   loading.value = true;
   
-  // 1. Teams
+  // 1. Fetch Teams
   const { data: teamData } = await supabase
     .from('teams')
     .select('id, name')
     .eq('club_id', activeClubId.value)
     .order('team_level');
-  teams.value = teamData || [];
+  
+  // FILTER TEAMS: Only show teams this user manages
+  let allowedTeams = teamData || [];
+  if (permissions.value.managedTeamIds !== 'all') {
+      allowedTeams = allowedTeams.filter(t => permissions.value.managedTeamIds.includes(t.id));
+  }
+  teams.value = allowedTeams;
 
-  // 2. Matches
+  // 2. Fetch Matches
   const { data: matchData, error } = await supabase
     .from('matches')
     .select(`*, teams!inner(name, club_id)`)
@@ -49,17 +61,43 @@ async function fetchData() {
     .order('match_date', { ascending: timeframe.value === 'upcoming' });
 
   if (error) console.error(error);
-  fixtures.value = matchData || [];
+  
+  // FILTER MATCHES: Only show matches for managed teams
+  let allowedMatches = matchData || [];
+  if (permissions.value.managedTeamIds !== 'all') {
+      allowedMatches = allowedMatches.filter(m => permissions.value.managedTeamIds.includes(m.team_id));
+  }
+  fixtures.value = allowedMatches;
+  
+  // Auto-select first team if user only manages specific teams
+  if (permissions.value.managedTeamIds !== 'all' && teams.value.length > 0 && selectedTeamId.value === 'all') {
+      // Optional: We could force selection, or leave 'all' to mean 'All MY teams'
+      // selectedTeamId.value = teams.value[0].id;
+  }
+
   loading.value = false;
 }
 
 // Computed Filter Logic
 const processedFixtures = computed(() => {
-  return filterFixtures(fixtures.value, {
-        timeframe: timeframe.value,
-        teamId: selectedTeamId.value,
-        searchQuery: searchQuery.value
-    });
+  let list = fixtures.value.filter(f => {
+    if (f.status === 'Played' && timeframe.value === 'upcoming') return false;
+    if (f.status === 'Played' && timeframe.value === 'past') return true;
+
+    const matchDate = new Date(f.match_date);
+    const todayDate = new Date();
+    todayDate.setHours(0,0,0,0);
+
+    if (timeframe.value === 'upcoming') return matchDate >= todayDate;
+    if (timeframe.value === 'past') return matchDate < todayDate;
+    return true;
+  });
+
+  if (selectedTeamId.value !== 'all') {
+    list = list.filter(f => f.team_id === selectedTeamId.value);
+  }
+
+  return list;
 });
 
 const groupedFixtures = computed(() => {
@@ -140,7 +178,7 @@ const handleStatusUpdate = async (match, newStatus) => {
           <div class="relative flex-1">
             <Filter class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <select v-model="selectedTeamId" class="w-full pl-10 pr-4 py-2.5 bg-slate-100 border-none rounded-xl font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 cursor-pointer appearance-none">
-              <option value="all">All Teams</option>
+              <option value="all">All My Teams</option>
               <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
             </select>
             <ChevronDown class="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -182,4 +220,3 @@ const handleStatusUpdate = async (match, newStatus) => {
 
   </div>
 </template>
-
