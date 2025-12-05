@@ -102,12 +102,20 @@ const handleFilterChange = () => { currentPage.value = 1; };
 
             <tr v-else v-for="player in paginatedPlayers" :key="player.id" class="hover:bg-slate-50 transition group">
               <td class="p-4 font-bold text-slate-900">
-                 <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3">
                     <div class="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-bold">
-                       {{ player.first_name[0] }}{{ player.last_name[0] }}
+                      {{ player.first_name[0] }}{{ player.last_name[0] }}
                     </div>
-                    {{ player.first_name }} {{ player.last_name }}
-                 </div>
+                    <div>
+                      <div>{{ player.first_name }} {{ player.last_name }}</div>
+                      <!-- NEW: Email Display -->
+                      <div class="text-[10px] text-slate-400 font-normal flex items-center gap-1">
+                          <span v-if="player.category === 'Adult'">{{ player.email }}</span>
+                          <span v-else-if="player.households?.primary_email">Parent: {{ player.households.primary_email }}</span>
+                          <span v-else class="text-rose-500 font-bold">Missing Email</span>
+                      </div>
+                    </div>
+                </div>
               </td>
               
               <td class="p-4">

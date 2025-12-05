@@ -1,6 +1,6 @@
 <script setup>
-import { computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router'; // Import Router
 import { useUser } from './composables/useUser';
 import BrandLogo from './components/BrandLogo.vue';
 import ToastManager from './components/ToastManager.vue';
@@ -19,8 +19,22 @@ import {
 } from 'lucide-vue-next';
 
 const route = useRoute();
-const isLandingPage = computed(() => route.path === '/' || route.path === '/onboarding');
-const { permissions } = useUser(); 
+const router = useRouter();
+const isLandingPage = computed(() => route.path === '/' || route.path === '/onboarding' || route.path === '/login' || route.path === '/register');
+
+// Destructure logout from the composable
+const { permissions, initAuth, logout } = useUser(); 
+
+// Initialize Auth on App Load
+onMounted(async () => {
+  await initAuth();
+});
+
+// THE LOGOUT LOGIC
+const handleLogout = async () => {
+  await logout();
+  router.push('/'); // Redirect to Home
+};
 </script>
 
 <template>
@@ -29,8 +43,9 @@ const { permissions } = useUser();
     <ToastManager />
     <ConfirmationModal /> 
 
+    <!-- DESKTOP SIDEBAR -->
     <aside v-if="!isLandingPage" class="hidden md:flex flex-col w-64 bg-slate-900 text-slate-300 h-screen sticky top-0 border-r border-slate-800 transition-all">
-      <div class="p-6 flex items-center gap-3 cursor-pointer" @click="$router.push('/')">
+      <div class="p-6 flex items-center gap-3 cursor-pointer" @click="router.push('/')">
         <div class="w-8 h-8">
           <BrandLogo />
         </div>
@@ -44,7 +59,6 @@ const { permissions } = useUser();
           <span>Team Selection</span>
         </router-link>
 
-        <!-- Parent Links -->
         <router-link v-if="permissions.isParent" to="/hub" class="nav-row" active-class="active">
           <Calendar class="w-5 h-5" />
           <span>Match Day Hub</span>
@@ -54,7 +68,6 @@ const { permissions } = useUser();
           <Wallet class="w-5 h-5" />
           <span>My Wallet</span>
         </router-link>
-        <!-- End Parent Links -->
 
         <router-link v-if="permissions.canManageMoney" to="/treasurer" class="nav-row" active-class="active">
           <HandCoins class="w-5 h-5" />
@@ -84,16 +97,19 @@ const { permissions } = useUser();
 
       <div class="p-4 border-t border-slate-800 space-y-4">
         <RoleSwitcher theme="dark" direction="up" />
-        <router-link to="/" class="flex items-center gap-3 text-sm font-medium hover:text-white transition px-2">
+        
+        <!-- LOGOUT BUTTON (Desktop) -->
+        <button @click="handleLogout" class="flex items-center gap-3 text-sm font-medium hover:text-white transition px-2 w-full text-left">
           <LogOut class="w-4 h-4" />
-          Back to Home
-        </router-link>
+          Sign Out
+        </button>
       </div>
     </aside>
 
-    <!-- MAIN CONTENT -->
+    <!-- MAIN CONTENT AREA -->
     <main class="flex-1 flex flex-col min-w-0 overflow-hidden relative">
       
+      <!-- Mobile Header -->
       <div v-if="!isLandingPage" class="md:hidden bg-white border-b border-slate-200 p-4 flex justify-between items-center sticky top-0 z-20">
         <div class="flex items-center gap-2">
           <div class="w-8 h-8">
@@ -101,11 +117,14 @@ const { permissions } = useUser();
           </div>
           <span class="font-bold text-lg text-slate-900">SportOS</span>
         </div>
-        <div class="w-40">
-           <RoleSwitcher theme="light" direction="down" />
-        </div>
+        
+        <!-- LOGOUT BUTTON (Mobile) -->
+        <button @click="handleLogout" class="text-slate-500 p-2 hover:bg-slate-100 rounded-full transition">
+          <LogOut class="w-5 h-5" />
+        </button>
       </div>
 
+      <!-- Page View -->
       <div class="flex-1 overflow-y-auto" :class="!isLandingPage ? 'p-0 md:p-8' : ''">
         <div :class="!isLandingPage ? 'max-w-5xl mx-auto' : 'w-full'">
           <router-view v-slot="{ Component }">
@@ -124,7 +143,6 @@ const { permissions } = useUser();
           <span>Team</span>
         </router-link>
 
-        <!-- Parent Link -->
         <router-link v-if="permissions.isParent" to="/hub" class="mobile-nav-item" active-class="active">
           <Calendar class="w-6 h-6" />
           <span>Match Day</span>

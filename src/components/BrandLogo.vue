@@ -4,7 +4,7 @@
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
     class="brand-logo"
-    aria-label="ClubOS Logo"
+    aria-label="SportOS Logo"
   >
     <defs>
       <!-- The "Modern Swiss" Gradient: Indigo to Coral -->

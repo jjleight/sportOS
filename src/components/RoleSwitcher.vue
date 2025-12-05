@@ -4,28 +4,26 @@ import { UserCircle2, ChevronDown, Check } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 
 const props = defineProps({
-  theme: { type: String, default: 'dark' }, // 'dark' | 'light'
-  direction: { type: String, default: 'up' } // 'up' | 'down'
+  theme: { type: String, default: 'dark' }, 
+  direction: { type: String, default: 'up' }
 });
 
-const { currentUser, setPersona } = useUser();
+// Use the new exposed state
+const { activeRole, setPersona } = useUser();
 const isOpen = ref(false);
 
-// The options available in the demo
 const roles = [
   { id: 'admin', label: 'Club Admin', desc: 'Full Access' },
   { id: 'treasurer', label: 'Treasurer', desc: 'Finance & Health' },
   { id: 'secretary', label: 'Secretary', desc: 'Rules & Compliance' },
   { id: 'coach', label: 'Team Coach', desc: 'Squad Selection' },
-  { id: 'welfare', label: 'Welfare Officer', desc: 'Safeguarding' },
   { id: 'parent', label: 'Parent', desc: 'Family Wallet' },
 ];
 
+// Map technical role ID to pretty label
 const currentRoleLabel = computed(() => {
-  const role = currentUser.value.roles[0].role;
-  const match = roles.find(r => r.id === role || r.id === 'admin' && role === 'admin'); 
-  // Simple map back to label, handling the mapping loosely for demo
-  return role.replace('_', ' ');
+  const match = roles.find(r => r.id === activeRole.value);
+  return match ? match.label : activeRole.value;
 });
 
 const selectRole = (roleId) => {
@@ -88,7 +86,7 @@ const selectRole = (roleId) => {
           </div>
         </div>
         
-        <Check v-if="currentUser.roles[0].role === (role.id === 'welfare' ? 'welfare_officer' : role.id)" class="w-4 h-4 text-emerald-500" />
+        <Check v-if="activeRole === role.id" class="w-4 h-4 text-emerald-500" />
       </div>
     </div>
 

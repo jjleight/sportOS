@@ -138,12 +138,23 @@ const handlePayment = async () => {
     <div class="p-6 space-y-6">
       
       <!-- Empty State if no household found -->
-      <div v-if="!loading && !currentHouseholdId" class="p-6 bg-white border border-dashed border-slate-300 rounded-xl text-center">
-         <h3 class="font-bold text-slate-900">No Family Found</h3>
-         <p class="text-sm text-slate-500 mt-1">
-            Go to <strong>Club Admin</strong>, create a player, and enter a "Parent Email" to generate a household for this demo.
-         </p>
-      </div>
+      <div v-if="!loading && !currentHouseholdId" class="p-8 bg-white border border-dashed border-slate-300 rounded-xl text-center">
+    <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+        <Users class="w-6 h-6" />
+    </div>
+    <h3 class="font-bold text-slate-900 mb-2">No Family Linked</h3>
+    <p class="text-sm text-slate-500 mb-6">
+        We couldn't find a household linked to <strong>{{ user?.email }}</strong>.
+    </p>
+    
+    <div class="bg-slate-50 p-4 rounded-lg text-left border border-slate-200">
+        <p class="text-xs font-bold text-slate-500 uppercase mb-2">Troubleshooting:</p>
+        <ul class="text-sm text-slate-600 space-y-2 list-disc pl-4">
+            <li>Did the Club Secretary use a different email address for you?</li>
+            <li>Check your spam folder for an Invite Code.</li>
+        </ul>
+    </div>
+</div>
 
       <div v-else>
         

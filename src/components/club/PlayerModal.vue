@@ -1,13 +1,13 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { supabase } from '../../supabase';
 import { useToast } from '../../composables/useToast';
-import { UserPlus, UserCog, Mail, Users } from 'lucide-vue-next';
+import { UserPlus, UserCog, Mail, Users, User, AlertCircle } from 'lucide-vue-next';
 
 const props = defineProps({
   clubId: String,
   teams: Array,
-  player: Object // If present, we are in "Edit Mode"
+  player: Object
 });
 
 const emit = defineEmits(['close', 'saved']);
@@ -17,96 +17,95 @@ const form = ref({
   first_name: '', 
   last_name: '', 
   team_id: '',
-  parent_email: ''
+  email: '',
+  category: 'Youth'
+});
+
+// NEW: Validation Logic
+const isValid = computed(() => {
+  return (
+    form.value.first_name.trim() !== '' &&
+    form.value.last_name.trim() !== '' &&
+    form.value.email.trim() !== '' &&
+    form.value.email.includes('@') // Basic format check
+  );
 });
 
 onMounted(() => {
   if (props.player) {
-    // EDIT MODE: Pre-fill data
     form.value = {
       first_name: props.player.first_name,
       last_name: props.player.last_name,
-      // Grab the first team ID if they have one (Simplification for MVP)
       team_id: props.player.team_memberships?.[0]?.team_id || '',
-      // We don't fetch parent email back in this simple query, leaving blank for now
-      // In a full app, you'd fetch the linked household email here
-      parent_email: '' 
+      category: props.player.category || 'Youth',
+      
+      // Fetch existing email safely
+      email: props.player.category === 'Adult' 
+        ? props.player.email 
+        : props.player.households?.primary_email || ''
     };
   }
 });
 
 const save = async () => {
+  if (!isValid.value) return; // Guard clause
+
   try {
     let playerId = props.player?.id;
+    let householdId = props.player?.household_id;
 
-    // 1. CREATE or UPDATE Player Details
-    if (props.player) {
-      // UPDATE
-      const { error } = await supabase
-        .from('players')
-        .update({
-          first_name: form.value.first_name,
-          last_name: form.value.last_name
-        })
-        .eq('id', playerId);
-      
-      if (error) throw error;
-
-    } else {
-      // CREATE (Logic from before)
-      let householdId = null;
-      
-      if (form.value.parent_email) {
-        const { data: existingHH } = await supabase
-          .from('households')
-          .select('id')
-          .eq('primary_email', form.value.parent_email)
-          .single();
-
+    // 1. Handle Household / Email
+    if (form.value.category === 'Youth') {
+        // For Youth, we MUST find or create a Household using this email
+        const { data: existingHH } = await supabase.from('households').select('id').eq('primary_email', form.value.email).single();
+        
         if (existingHH) {
-          householdId = existingHH.id;
+           householdId = existingHH.id;
         } else {
-          const { data: newHH, error: hhError } = await supabase
-            .from('households')
-            .insert({
+           const { data: newHH, error: hhError } = await supabase.from('households').insert({
               name: `${form.value.last_name} Family`,
-              primary_email: form.value.parent_email
-            })
-            .select()
-            .single();
-          if (hhError) throw hhError;
-          householdId = newHH.id;
+              primary_email: form.value.email
+           }).select().single();
+           if (hhError) throw hhError;
+           householdId = newHH.id;
         }
-      }
+    }
 
+    // 2. Create/Update Player
+    const payload = {
+        first_name: form.value.first_name,
+        last_name: form.value.last_name,
+        category: form.value.category,
+    };
+
+    if (householdId) payload.household_id = householdId;
+    
+    // For Adult, save email directly on player (and they become their own household logically later)
+    if (form.value.category === 'Adult') {
+        payload.email = form.value.email;
+        payload.household_id = null; // Adults manage themselves (or you could create a single-person household)
+    }
+
+    if (props.player) {
+      const { error } = await supabase.from('players').update(payload).eq('id', playerId);
+      if (error) throw error;
+      // If updating Youth email, update the linked household too
+      if (props.player.category === 'Youth' && householdId) {
+          await supabase.from('households').update({ primary_email: form.value.email }).eq('id', householdId);
+      }
+    } else {
       const { data: newPlayer, error: pError } = await supabase
         .from('players')
-        .insert({
-          club_id: props.clubId,
-          first_name: form.value.first_name,
-          last_name: form.value.last_name,
-          household_id: householdId
-        })
-        .select()
-        .single();
-
+        .insert({ ...payload, club_id: props.clubId })
+        .select().single();
       if (pError) throw pError;
       playerId = newPlayer.id;
     }
 
-    // 2. HANDLE TEAM ASSIGNMENT (The "Membership")
-    // For simplicity, we wipe existing team links and add the new one selected
+    // 3. Team Assignment
     if (form.value.team_id) {
-      // Remove old links (Reset)
       await supabase.from('team_memberships').delete().eq('player_id', playerId);
-      
-      // Add new link
-      const { error: mError } = await supabase.from('team_memberships').insert({
-        player_id: playerId,
-        team_id: form.value.team_id
-      });
-      
-      if (mError) throw mError;
+      await supabase.from('team_memberships').insert({ player_id: playerId, team_id: form.value.team_id });
     }
 
     showToast('Success', props.player ? 'Player updated.' : 'Player registered.', 'success');
@@ -131,28 +130,41 @@ const save = async () => {
        </h2>
 
        <div class="space-y-4">
+         
+         <div class="bg-slate-100 p-1 rounded-lg flex mb-4">
+            <button @click="form.category = 'Youth'" class="flex-1 py-1.5 text-xs font-bold rounded-md transition-all" :class="form.category === 'Youth' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'">Youth (Under 18)</button>
+            <button @click="form.category = 'Adult'" class="flex-1 py-1.5 text-xs font-bold rounded-md transition-all" :class="form.category === 'Adult' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'">Adult (Senior)</button>
+         </div>
+
          <div class="grid grid-cols-2 gap-4">
            <div>
-             <label class="label">First Name</label>
-             <input v-model="form.first_name" class="input" placeholder="Jack" />
+             <label class="label">First Name <span class="text-rose-500">*</span></label>
+             <input v-model="form.first_name" class="input" placeholder="Name" />
            </div>
            <div>
-             <label class="label">Last Name</label>
-             <input v-model="form.last_name" class="input" placeholder="Smith" />
+             <label class="label">Last Name <span class="text-rose-500">*</span></label>
+             <input v-model="form.last_name" class="input" placeholder="Surname" />
            </div>
          </div>
 
-         <!-- Parent Email (Only show on Create for now to keep simple) -->
-         <div v-if="!player" class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+         <!-- Email Field -->
+         <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 transition-all" 
+              :class="{'ring-1 ring-rose-200 bg-rose-50': !form.email && form.first_name}">
             <label class="label flex items-center gap-1">
-                <Users class="w-3 h-3" /> Parent Email
+                <component :is="form.category === 'Adult' ? User : Users" class="w-3 h-3" /> 
+                {{ form.category === 'Adult' ? 'Player Email' : 'Parent / Guardian Email' }}
+                <span class="text-rose-500">*</span>
             </label>
             <div class="relative mt-1">
                 <Mail class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input v-model="form.parent_email" type="email" class="input pl-9 bg-white" placeholder="parent@example.com" />
+                <input v-model="form.email" type="email" class="input pl-9 bg-white" placeholder="example@email.com" required />
             </div>
-            <p class="text-[10px] text-slate-400 mt-1.5 ml-1">
-                Links player to a family household.
+            
+            <div v-if="!form.email" class="flex items-center gap-1 mt-2 text-[10px] text-rose-600 font-bold">
+                <AlertCircle class="w-3 h-3" /> Required for billing & notifications
+            </div>
+            <p v-else class="text-[10px] text-slate-400 mt-1.5 ml-1">
+                {{ form.category === 'Adult' ? 'Used for billing and app login.' : 'Updates family contact (affects siblings).' }}
             </p>
          </div>
 
@@ -164,7 +176,7 @@ const save = async () => {
            </select>
          </div>
 
-         <button @click="save" :disabled="!form.first_name || !form.last_name" class="btn-primary">
+         <button @click="save" :disabled="!isValid" class="btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
             {{ player ? 'Save Changes' : 'Complete Registration' }}
          </button>
        </div>
@@ -178,7 +190,6 @@ const save = async () => {
 .input:focus { border-color: #6366F1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
 .btn-primary { width: 100%; color: white; font-weight: 700; padding: 0.75rem; border-radius: 0.75rem; background-color: #4F46E5; margin-top: 0.5rem; transition: all 0.2s; }
 .btn-primary:hover { background-color: #4338CA; }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 </style>

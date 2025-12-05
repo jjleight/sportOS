@@ -37,7 +37,7 @@ const emit = defineEmits(['update:selectedMatchId', 'update:viewMode', 'update:d
           <button @click="$emit('update:viewMode', 'squad')" 
                   class="flex-1 py-1.5 rounded text-xs font-bold transition-all"
                   :class="viewMode === 'squad' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'">
-             Squad Only
+             Team Only
           </button>
           <button @click="$emit('update:viewMode', 'club')" 
                   class="flex-1 py-1.5 rounded text-xs font-bold transition-all"

@@ -40,4 +40,14 @@ describe('Financial Engine', () => {
     expect(result).toBe('10.00');
   });
 
+  it('handles credits (-50.00) when payments have been received', () => {
+    const mockLedger = [
+      { amount: 10.00 },
+      { amount: -50.00 }, // database error
+      { amount: 90.00 }
+    ];
+    const result = calculateTotalDebt(mockLedger);
+    expect(result).toBe('50.00');
+  });
+
 });

@@ -1,10 +1,12 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue';
 import { supabase } from '../supabase';
-import { useClub } from '../composables/useClub'; // Global State
+import { useClub } from '../composables/useClub'; 
 import { useToast } from '../composables/useToast';
 import { useConfirm } from '../composables/useConfirm';
-import { Heart, Users, Plus, ArrowRight, HandCoins } from 'lucide-vue-next';
+import { Heart, Plus, ArrowRight, HandCoins } from 'lucide-vue-next';
+
+import InvoiceModal from './club/InvoiceModal.vue';
 
 const { activeClubId, activeClubName } = useClub();
 const { showToast } = useToast();
@@ -16,11 +18,13 @@ const recentTransactions = ref([]);
 const pendingCount = ref(0);
 const isCharging = ref(false);
 
+// FIX: Ensure this is explicitly false
+const showInvoiceModal = ref(false);
+
 onMounted(async () => {
   await fetchClubFinances();
 });
 
-// Reload on club switch
 watch(activeClubId, () => {
   fetchClubFinances();
 });
@@ -28,17 +32,17 @@ watch(activeClubId, () => {
 async function fetchClubFinances() {
   loading.value = true;
   try {
-    // Join 'players' to filter ledger items by the active club
     const { data: ledgerData, error } = await supabase
       .from('ledger')
       .select(`
         amount, 
         status, 
         created_at, 
+        description,
         players!inner(first_name, last_name, club_id)
       `)
       .eq('status', 'pending')
-      .eq('players.club_id', activeClubId.value) // FILTER BY CLUB
+      .eq('players.club_id', activeClubId.value)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -61,21 +65,23 @@ async function fetchClubFinances() {
   }
 }
 
-const triggerBulkCharge = async () => {
-  const isConfirmed = await showConfirm(
-    "Send Contribution Requests?", 
-    "This will request a £10.00 Match Fee from 14 families in the U12 squad."
+const openInvoiceWizard = () => {
+  showInvoiceModal.value = true;
+};
+
+const handleInvoiceSent = () => {
+  fetchClubFinances();
+};
+
+// New Function for the "Nudge" button
+const sendNudge = async () => {
+  const confirmed = await showConfirm(
+    "Send Reminders?", 
+    `This will send an email notification to ${pendingCount.value} families with outstanding contributions.`
   );
-  
-  if (!isConfirmed) return;
-  
-  isCharging.value = true;
-  
-  setTimeout(async () => {
-    isCharging.value = false;
-    showToast('Requests Sent', '14 Notifications dispatched to parents.', 'success');
-    await fetchClubFinances();
-  }, 1500);
+  if (confirmed) {
+    showToast("Reminders Sent", "Families have been notified.", "success");
+  }
 };
 </script>
 
@@ -87,16 +93,15 @@ const triggerBulkCharge = async () => {
         <div class="flex justify-between items-center">
           <div>
             <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
-               <!-- Dynamic Club Name -->
                {{ activeClubName }} Health
             </h1>
             <p class="text-sm text-slate-500">Tracking fair share contributions</p>
           </div>
-          <button @click="triggerBulkCharge" :disabled="isCharging" 
+          
+          <button @click="openInvoiceWizard" 
                   class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-lg shadow-indigo-100 transition-all active:scale-95">
-            <Plus v-if="!isCharging" class="w-4 h-4" />
-            <div v-else class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-            {{ isCharging ? 'Sending...' : 'Request Fees' }}
+            <Plus class="w-4 h-4" />
+            Request Fees
           </button>
         </div>
       </div>
@@ -105,6 +110,7 @@ const triggerBulkCharge = async () => {
     <div class="max-w-5xl mx-auto px-6 py-8 space-y-8">
       <!-- KPI Cards -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
         <!-- Pending Contributions -->
         <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-xl shadow-slate-200/50 relative overflow-hidden group">
           <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition duration-500">
@@ -143,8 +149,7 @@ const triggerBulkCharge = async () => {
             <button class="text-indigo-600 text-xs font-bold hover:underline">View Ledger</button>
           </div>
           
-          <!-- Empty State -->
-          <div v-if="recentTransactions.length === 0" class="p-12 text-center text-slate-400">
+          <div v-if="recentTransactions.length === 0" class="p-12 text-center text-slate-400 text-sm">
               No financial activity recorded yet.
           </div>
 
@@ -158,7 +163,7 @@ const triggerBulkCharge = async () => {
                   <div class="text-sm font-bold text-slate-900">
                     {{ item.players?.first_name }} {{ item.players?.last_name }}
                   </div>
-                  <div class="text-xs text-slate-400">Request Sent</div>
+                  <div class="text-xs text-slate-400">{{ item.description || 'Request Sent' }}</div>
                 </div>
               </div>
               <span class="text-sm font-medium text-slate-400">£{{ item.amount }}</span>
@@ -177,7 +182,7 @@ const triggerBulkCharge = async () => {
             <p class="text-indigo-100 text-sm mb-6 relative z-10">
               The "Mens 2nd XI" has <strong>£420.00</strong> in pending support. A gentle nudge can help them get match-ready.
             </p>
-            <button class="bg-white text-indigo-600 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-indigo-50 transition relative z-10">
+            <button @click="sendNudge" class="bg-white text-indigo-600 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-indigo-50 transition relative z-10">
               Send Gentle Nudge <ArrowRight class="w-4 h-4" />
             </button>
           </div>
@@ -196,5 +201,13 @@ const triggerBulkCharge = async () => {
         </div>
       </div>
     </div>
+
+    <!-- Invoice Modal Injection -->
+    <InvoiceModal 
+      v-if="showInvoiceModal" 
+      @close="showInvoiceModal = false" 
+      @sent="handleInvoiceSent" 
+    />
+
   </div>
 </template>
