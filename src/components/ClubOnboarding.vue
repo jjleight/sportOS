@@ -2,12 +2,14 @@
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useClub } from '../composables/useClub';
+import { useUser } from '../composables/useUser'; // Import User State
 import { useToast } from '../composables/useToast';
 import BrandLogo from './BrandLogo.vue';
-import { ArrowRight, Trophy, User, Mail, Calendar, Palette, CheckCircle2 } from 'lucide-vue-next';
+import { ArrowRight, Trophy, User, Mail, Calendar, Palette, CheckCircle2, Sparkles } from 'lucide-vue-next';
 
 const router = useRouter();
 const { createClub } = useClub();
+const { user, fetchProfile } = useUser(); // Get User & Fetcher
 const { showToast } = useToast();
 
 const step = ref(1);
@@ -19,12 +21,12 @@ const form = ref({
   clubName: '',
   sport: 'Football',
   county: '',
-  color: '#4F46E5', // Default Indigo
+  color: '#4F46E5', 
   
   // Step 2: The Creator (You)
   firstName: '',
   lastName: '',
-  role: 'Treasurer', // Default assumption
+  role: 'Treasurer', 
   dob: '',
   phone: '',
   
@@ -49,13 +51,14 @@ const nextStep = () => {
 const handleFinalSubmit = async () => {
   loading.value = true;
   try {
-    // 1. Create the Club (Logic inside useClub would need updating to handle extra fields, 
-    // for this demo we pass the name but imagine we pass it all)
-    await createClub(form.value.clubName);
+    // 1. Create the Club AND Link User as Admin
+    // We pass user.value so useClub knows who to promote
+    await createClub(form.value.clubName, user.value);
     
-    // In a real backend, you would now:
-    // - Create the Profile row for the user
-    // - Send invite emails to Secretary/Chairman
+    // 2. Refresh Profile so the App knows we are now an Admin
+    await fetchProfile();
+    
+    // In a real backend, you would now send invite emails to Secretary/Chairman here
     
     showToast('Club Created', `Welcome to SportOS, ${form.value.firstName}!`, 'success');
     router.push('/admin');
@@ -78,6 +81,8 @@ const handleFinalSubmit = async () => {
       
       <!-- Header -->
       <div class="bg-slate-900 p-8 text-center relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500 rounded-full blur-2xl opacity-20 -mr-10 -mt-10"></div>
+        
         <div class="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-6 backdrop-blur-sm border border-white/10 shadow-inner">
           <BrandLogo class="w-10 h-10" />
         </div>
@@ -178,7 +183,12 @@ const handleFinalSubmit = async () => {
       <!-- STEP 3: THE OFFICERS (INVITES) -->
       <div v-if="step === 3" class="p-8 space-y-6 animate-fade-in">
         <h2 class="text-lg font-bold text-slate-900">Key Officials (Optional)</h2>
-        <p class="text-xs text-slate-500 mb-4">We will send them an invite to complete their own profile. If you hold these roles, leave blank.</p>
+        <div class="bg-indigo-50 p-4 rounded-xl flex gap-3 items-start border border-indigo-100 mb-4">
+          <Sparkles class="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+          <p class="text-xs text-indigo-800 leading-relaxed">
+            <strong>Pro Tip:</strong> We will send them an invite to complete their own profile. If you hold these roles, leave blank.
+          </p>
+        </div>
         
         <div v-if="form.role !== 'Secretary'">
           <label class="label">Club Secretary Email</label>
